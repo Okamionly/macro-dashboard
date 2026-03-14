@@ -1,18 +1,27 @@
 import { useState, useEffect, useRef } from "react";
 import { Chart, registerables } from "chart.js";
 import { useCotData } from "../hooks/useCotData";
-import { COT_CONTRACTS } from "../lib/constants";
-import { RefreshCw } from "lucide-react";
+import { COT_CONTRACTS, COT_CATEGORIES } from "../lib/constants";
+import { RefreshCw, Search } from "lucide-react";
 
 Chart.register(...registerables);
 
 export function CotDashboard() {
   const [asset, setAsset] = useState("EUR");
+  const [category, setCategory] = useState<string>("Tous");
+  const [search, setSearch] = useState("");
   const { data, loading, error, reload } = useCotData(asset);
   const netChartRef = useRef<HTMLCanvasElement>(null);
   const netChartInstance = useRef<Chart | null>(null);
   const barChartRef = useRef<HTMLCanvasElement>(null);
   const barChartInstance = useRef<Chart | null>(null);
+
+  // Filter contracts by category + search
+  const filteredContracts = Object.entries(COT_CONTRACTS).filter(([key, c]) => {
+    const matchCategory = category === "Tous" || c.category === category;
+    const matchSearch = !search || key.toLowerCase().includes(search.toLowerCase()) || c.name.toLowerCase().includes(search.toLowerCase());
+    return matchCategory && matchSearch;
+  });
 
   useEffect(() => {
     if (!netChartRef.current || data.length === 0) return;
@@ -72,24 +81,71 @@ export function CotDashboard() {
     return () => { barChartInstance.current?.destroy(); };
   }, [data]);
 
+  const currentContract = COT_CONTRACTS[asset];
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold">COT Report — Commitment of Traders</h1>
-        <div className="flex items-center gap-3">
-          <select
-            value={asset}
-            onChange={(e) => setAsset(e.target.value)}
-            className="bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2 text-sm"
-          >
-            {Object.entries(COT_CONTRACTS).map(([key, c]) => (
-              <option key={key} value={key}>{key} — {c.name}</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-2">
           <button onClick={reload} className="p-2 rounded-lg hover:bg-white/5 transition" title="Rafraîchir">
             <RefreshCw className={`w-5 h-5 text-gray-400 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
+      </div>
+
+      {/* Category tabs + search */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex gap-1 flex-wrap">
+          {COT_CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategory(cat)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                category === cat
+                  ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/50"
+                  : "text-gray-400 hover:text-white hover:bg-white/5 border border-transparent"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher un symbole..."
+            className="w-full bg-gray-800/50 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Asset grid selector */}
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+        {filteredContracts.map(([key, c]) => (
+          <button
+            key={key}
+            onClick={() => setAsset(key)}
+            className={`px-3 py-2 rounded-lg text-xs font-medium transition text-left ${
+              asset === key
+                ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 ring-1 ring-cyan-500/30"
+                : "glass text-gray-400 hover:text-white hover:border-gray-600 border border-transparent"
+            }`}
+          >
+            <div className="font-bold text-sm">{key}</div>
+            <div className="text-[10px] opacity-60 truncate">{c.name}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* Current selection info */}
+      <div className="flex items-center gap-2 text-sm text-gray-400">
+        <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 text-xs">{currentContract?.category}</span>
+        <span>{asset} — {currentContract?.name}</span>
+        <span className="text-gray-600">|</span>
+        <span className="mono text-gray-500">CFTC #{currentContract?.code}</span>
       </div>
 
       {error && <div className="glass rounded-xl p-4 text-rose-400 text-sm">{error}</div>}
@@ -103,16 +159,25 @@ export function CotDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {data.length > 0 && (() => {
               const last = data[data.length - 1];
+              const prev = data.length > 1 ? data[data.length - 2] : null;
               return [
-                { label: "Non-Commercials Net", value: last.nonCommNet, color: "text-cyan-400" },
-                { label: "Commercials Net", value: last.commNet, color: "text-emerald-400" },
-                { label: "Open Interest", value: last.openInterest, color: "text-amber-400" },
-              ].map((m) => (
-                <div key={m.label} className="glass rounded-xl p-4">
-                  <p className="text-xs text-gray-400">{m.label}</p>
-                  <p className={`text-2xl font-bold mono ${m.color}`}>{m.value.toLocaleString()}</p>
-                </div>
-              ));
+                { label: "Non-Commercials Net", value: last.nonCommNet, prev: prev?.nonCommNet, color: "text-cyan-400" },
+                { label: "Commercials Net", value: last.commNet, prev: prev?.commNet, color: "text-emerald-400" },
+                { label: "Open Interest", value: last.openInterest, prev: prev?.openInterest, color: "text-amber-400" },
+              ].map((m) => {
+                const change = m.prev != null ? m.value - m.prev : 0;
+                return (
+                  <div key={m.label} className="glass rounded-xl p-4">
+                    <p className="text-xs text-gray-400">{m.label}</p>
+                    <p className={`text-2xl font-bold mono ${m.color}`}>{m.value.toLocaleString()}</p>
+                    {change !== 0 && (
+                      <p className={`text-xs mono ${change > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        {change > 0 ? "+" : ""}{change.toLocaleString()} vs semaine préc.
+                      </p>
+                    )}
+                  </div>
+                );
+              });
             })()}
           </div>
 

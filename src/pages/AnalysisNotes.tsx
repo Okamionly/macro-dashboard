@@ -3,7 +3,12 @@ import { useAnalysisNotes } from "../hooks/useAnalysisNotes";
 import { Plus, Trash2, Archive, ArchiveRestore, X, Search } from "lucide-react";
 import type { AnalysisNote } from "../lib/types";
 
-const ASSETS = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "BTCUSD", "SP500", "DXY", "OIL"];
+const ASSETS = [
+  "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD",
+  "XAUUSD", "XAGUSD", "BTCUSD", "SP500", "NASDAQ", "DOW", "VIX",
+  "DXY", "OIL", "BRENT", "NATGAS", "CORN", "WHEAT", "SOYBEANS",
+  "US10Y", "US2Y", "COPPER", "COFFEE", "COTTON", "SUGAR",
+];
 
 function NoteEditor({ note, onSave, onClose }: { note?: AnalysisNote; onSave: (data: Partial<AnalysisNote>) => void; onClose: () => void }) {
   const [title, setTitle] = useState(note?.title || "");
